@@ -1,7 +1,6 @@
 from fastapi import FastAPI
 from app.routers import chat
 from app.config import settings
-from beanie import init_beanie
 from motor.motor_asyncio import AsyncIOMotorClient
 
 app = FastAPI()

@@ -9,3 +9,10 @@ python-dotenv>=1.0.1
 motor>=3.3.2
 python-multipart>=0.0.5
 httpx>=0.23.0
+pymupdf==1.25.2
+nltk==3.9.1
+regex==2024.11.6
+joblib==1.4.2
+Pillow==11.1.0
+numpy==2.2.2
+opencv-python==4.11.0.86
