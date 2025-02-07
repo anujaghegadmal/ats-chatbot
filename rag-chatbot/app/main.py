@@ -1,11 +1,12 @@
 from fastapi import FastAPI
-from app.routers import chat
+from app.routers import chat, upload_pdf
 from app.config import settings
 from motor.motor_asyncio import AsyncIOMotorClient
 
 app = FastAPI()
 
 app.include_router(chat.router)
+app.include_router(upload_pdf.router)
 
 @app.on_event("startup")
 async def startup_db():

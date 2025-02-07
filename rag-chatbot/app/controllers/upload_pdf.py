@@ -1,125 +1,67 @@
-from fastapi import FastAPI, File, UploadFile, HTTPException
-import fitz  # PyMuPDF for extracting text & images
-import nltk
-from nltk.tokenize import word_tokenize
-import weaviate
-import shutil
 import os
-from PIL import Image
-import io
-import cv2
-import numpy as np
-from app.config import settings
+import shutil
+import fitz  # PyMuPDF for extracting text from PDFs
+from sentence_transformers import SentenceTransformer
 
-app = FastAPI()
-
-# Initialize Weaviate client
-client = weaviate.Client(
-    url=settings.weaviate_url,
-    additional_headers={"X-OpenAI-Api-Key": settings.openai_api_key}
-)
-
-# Directory to store uploaded PDFs
 UPLOAD_DIR = "uploaded_pdfs"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
-# Function to extract text from a PDF
-def extract_text_from_pdf(pdf_path: str) -> str:
-    doc = fitz.open(pdf_path)
-    text = ""
-    for page in doc:
-        text += page.get_text("text")
-    return text.strip()
+# Load embedding model
+embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
 
-# Function to extract images from a PDF
-def extract_images_from_pdf(pdf_path: str):
-    """Extract images from a PDF file."""
-    doc = fitz.open(pdf_path)
-    images = []
-    for i, page in enumerate(doc):
-        for img_index, img in enumerate(page.get_images(full=True)):
-            xref = img[0]
-            base_image = doc.extract_image(xref)
-            image_bytes = base_image["image"]
-            img_pil = Image.open(io.BytesIO(image_bytes))
-            images.append(img_pil)
-    return images
+class PDFController:
+    def __init__(self, weaviate_client):
+        self.client = weaviate_client
 
-# Function to check for charts in images using OpenCV
-def check_for_charts(image):
-    """Detect charts in an image using OpenCV."""
-    image_np = np.array(image.convert("RGB"))
-    gray = cv2.cvtColor(image_np, cv2.COLOR_RGB2GRAY)
-    edges = cv2.Canny(gray, 50, 150, apertureSize=3)
-    
-    # Detect circles (Pie charts)
-    circles = cv2.HoughCircles(
-        edges, cv2.HOUGH_GRADIENT, dp=1.2, minDist=30, param1=50, param2=30, minRadius=10, maxRadius=100
-    )
+    def __del__(self):
+        """Ensures Weaviate connection is closed properly."""
+        if hasattr(self, "client") and self.client:
+            self.client.close()
 
-    # Detect lines (Bar charts)
-    lines = cv2.HoughLinesP(edges, 1, np.pi / 180, 100, minLineLength=50, maxLineGap=10)
+    async def process_pdf(self, file) -> dict:
+        file_path = os.path.join(UPLOAD_DIR, file.filename)
+        
+        # Saving the uploaded file
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
 
-    return bool(circles) or bool(lines)
+        # Extracting text
+        extracted_text = self.extract_text_from_pdf(file_path)
 
-# Function to tokenize the extracted text
-def tokenize_text(text: str) -> list[str]:
-    nltk.download('punkt')  # Ensure tokenization resources are available
-    return word_tokenize(text)
+        # Generating embeddings
+        embedding = self.generate_embedding(extracted_text)
 
-# Function to store tokenized text in Weaviate
-def store_text_in_weaviate(text: str, tokens: list[str], pdf_name: str):
-    document = {
-        "content": text,
-        "tokens": tokens,
-        "pdf_name": pdf_name
-    }
-    client.data_object.create(class_name="PDFDocument", data=document)
+        # Storing in Weaviate
+        self.store_text_in_weaviate(extracted_text, embedding, file.filename)
 
-@app.post("/upload_resume/")
-async def upload_resume(file: UploadFile = File(...)):
-    """Classify resumes and store data in Weaviate."""
-    
-    try:
-        # Save the uploaded file temporarily
-        file_location = os.path.join(UPLOAD_DIR, f"temp_{file.filename}")
-        with open(file_location, "wb") as f:
-            shutil.copyfileobj(file.file, f)
+        return {"message": "File uploaded and processed successfully."}
 
-        # Extract text from the PDF
-        extracted_text = extract_text_from_pdf(file_location)
-        has_text = bool(extracted_text)
+    def extract_text_from_pdf(self, pdf_path: str) -> str:
+        doc = fitz.open(pdf_path)
+        return "\n".join(page.get_text("text") for page in doc)
 
-        # Extract images from the PDF
-        extracted_images = extract_images_from_pdf(file_location)
-        has_images = len(extracted_images) > 0
+    def generate_embedding(self, text: str):
+        """Generating embeddings using Sentence Transformers."""
+        return embedding_model.encode(text).tolist()  # Convert to list for Weaviate
 
-        # Check for charts in the images
-        has_charts = any(check_for_charts(img) for img in extracted_images)
-
-        # Tokenize the extracted text
-        tokens = tokenize_text(extracted_text)
-
-        # Store the extracted text and tokens in Weaviate
-        store_text_in_weaviate(extracted_text, tokens, file.filename)
-
-        # Classify Resume Type
-        if has_text and not has_images:
-            resume_type = "Traditional Resume"
-        elif has_images and not has_charts:
-            resume_type = "Resume with Images"
-        elif has_images and has_charts:
-            resume_type = "Resume with Charts"
-        else:
-            resume_type = "Unknown Format"
-
-        return {
-            "resume_type": resume_type,
-            "has_text": has_text,
-            "has_images": has_images,
-            "has_charts": has_charts,
-            "message": "File uploaded, processed, and stored in Weaviate successfully."
+    def store_text_in_weaviate(self, text: str, embedding: list, pdf_name: str):
+        document = {
+            "content": text,
+            "pdf_name": pdf_name
         }
+        
+        # Check if the collection exists
+        if "PDFDocuments" not in self.client.collections.list_all():
+            self.client.collections.create(
+                name="PDFDocuments",
+                vectorizer_config={"vectorIndexType": "hnsw"},  # Use HNSW indexing
+                properties=[
+                    {"name": "content", "dataType": "string"},
+                    {"name": "pdf_name", "dataType": "string"}
+                ]
+            )
 
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        self.client.collections.get("PDFDocuments").data.insert(
+            properties=document,
+            vector=embedding
+        )
