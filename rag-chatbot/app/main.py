@@ -1,7 +1,7 @@
-from fastapi import FastAPI, HTTPException, Depends #status
+from fastapi import FastAPI, HTTPException, Depends , status
 from fastapi.security import OAuth2PasswordBearer
-from app.routers import chat  # Import the chat router
-from app.config import settings  # Import settings for MongoDB and JWT
+from app.routers import chat
+from app.config import settings
 from motor.motor_asyncio import AsyncIOMotorClient
 from passlib.context import CryptContext
 from datetime import datetime, timedelta
@@ -108,101 +108,18 @@ async def register(user: User):
     return user
 
 # User login endpoint
-# @app.post("/login", response_model=dict)
-# async def login(user_id: str, password: str):
-#     user = await authenticate_user(user_id, password)
-#     if not user:
-#         raise HTTPException(
-#             status_code=status.HTTP_401_UNAUTHORIZED,
-#             detail="Incorrect username or password",
-#             headers={"WWW-Authenticate": "Bearer"},
-#         )
-#     access_token_expires = timedelta(minutes=30)  # Set your token expiration time
-#     access_token = create_access_token(
-#         data={"sub": user["user_id"]}, expires_delta=access_token_expires
-#     )
-#     return {"access_token": access_token, "token_type": "bearer"}
+@app.post("/login", response_model=dict)
+async def login(user_id: str, password: str):
+    user = await authenticate_user(user_id, password)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect username or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    access_token_expires = timedelta(minutes=30)  # Set your token expiration time
+    access_token = create_access_token(
+        data={"sub": user["user_id"]}, expires_delta=access_token_expires
+    )
+    return {"access_token": access_token, "token_type": "bearer"}
 
-# Chat and message endpoints (integrated from your previous code)
-# @app.post("/chats", response_model=Chat)
-# async def create_chat(chat_request: CreateChatRequest, current_user: User = Depends(get_current_user)):
-#     if current_user["user_id"] != chat_request.user_id:
-#         raise HTTPException(status_code=403, detail="Not authorized to create a chat for this user")
-
-#     chat_id = str(ObjectId())  # Generate a unique chat ID
-#     chat_data = {
-#         "chat_id": chat_id,
-#         "user_id": chat_request.user_id,
-#         "created_at": datetime.utcnow(),
-#         "updated_at": datetime.utcnow()
-#     }
-#     await app.state.chats_collection.insert_one(chat_data)
-#     return chat_data
-
-# @app.get("/chats/{user_id}", response_model=List[Chat])
-# async def get_chats(user_id: str, current_user: User = Depends(get_current_user)):
-#     if current_user["user_id"] != user_id:
-#         raise HTTPException(status_code=403, detail="Not authorized to access chats for this user")
-
-#     chats = await app.state.db.chats.find({"user_id": user_id}).to_list(None)
-#     return chats
-
-# @app.post("/chats/{chat_id}/messages", response_model=Message)
-# async def add_message(
-#     chat_id: str,
-#     message_request: CreateMessageRequest,
-#     current_user: User = Depends(get_current_user)
-# ):
-#     # Verify that the current user is authorized to add a message to this chat
-#     if current_user["user_id"] != message_request.user_id:
-#         raise HTTPException(status_code=403, detail="Not authorized to add a message to this chat")
-
-#     # Check if the chat exists
-#     chat = await app.state.db.chats.find_one({"chat_id": chat_id})
-#     if not chat:
-#         raise HTTPException(status_code=404, detail="Chat not found")
-
-#     # Prepare the message data
-#     message_data = {
-#         "message_id": str(ObjectId()),
-#         "chat_id": chat_id,
-#         "user_id": message_request.user_id,
-#         "role": message_request.role,
-#         "content": message_request.content,
-#         "timestamp": datetime.utcnow()
-#     }
-
-#     # Insert the message into the database
-#     await app.state.db.messages.insert_one(message_data)
-
-#     # Update the chat's 'updated_at' timestamp
-#     await app.state.db.chats.update_one(
-#         {"chat_id": chat_id},
-#         {"$set": {"updated_at": datetime.utcnow()}}
-#     )
-
-#     return message_data
-
-# @app.get("/chats/{chat_id}/messages", response_model=List[Message])
-# async def get_messages(chat_id: str, current_user: User = Depends(get_current_user)):
-#     chat = await app.state.db.chats.find_one({"chat_id": chat_id})
-#     if not chat:
-#         raise HTTPException(status_code=404, detail="Chat not found")
-#     if current_user["user_id"] != chat["user_id"]:
-#         raise HTTPException(status_code=403, detail="Not authorized to access this chat")
-
-#     messages = await app.state.db.messages.find({"chat_id": chat_id}).to_list(None)
-#     return messages
-
-# @app.get("/chats/{chat_id}/full", response_model=ChatWithMessages)
-# async def get_chat_with_messages(chat_id: str, current_user: User = Depends(get_current_user)):
-#     chat = await app.state.db.chats.find_one({"chat_id": chat_id})
-#     if not chat:
-#         raise HTTPException(status_code=404, detail="Chat not found")
-#     if current_user["user_id"] != chat["user_id"]:
-#         raise HTTPException(status_code=403, detail="Not authorized to access this chat")
-
-#     messages = await app.state.db.messages.find({"chat_id": chat_id}).to_list(None)
-#     return {"chat": chat, "messages": messages}
-
-# uvicorn app.main:app --reload
