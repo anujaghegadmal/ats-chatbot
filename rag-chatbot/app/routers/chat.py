@@ -9,7 +9,8 @@ from bson import ObjectId
 from datetime import datetime
 from typing import List
 from app.schemas.user import User
-from app.schemas.chat import Chat, Message, ChatWithMessages , CreateChatRequest , Message
+from app.schemas.chat import Chat, Message, ChatWithMessages , CreateChatRequest , Message, CreateMessageRequest
+from app.database import messages_collection, chats_collection
 router = APIRouter()
 from passlib.context import CryptContext
 from fastapi.security import OAuth2PasswordBearer
@@ -50,36 +51,27 @@ async def get_chats(user_id: str, current_user: User = Depends(get_current_user)
 @router.post("/chats/{chat_id}/messages", response_model=Message)
 async def add_message(
     chat_id: str,
-    message_request: Message,
+    message_request: CreateMessageRequest,  # Use the request body model
     current_user: User = Depends(get_current_user)
 ):
-    # Verify that the current user is authorized to add a message to this chat
     if current_user["user_id"] != message_request.user_id:
         raise HTTPException(status_code=403, detail="Not authorized to add a message to this chat")
 
-    # Check if the chat exists
-    chat = await app.state.db.chats.find_one({"chat_id": chat_id})
-    if not chat:
-        raise HTTPException(status_code=404, detail="Chat not found")
-
-    # Prepare the message data
+    # Generate message_id and timestamp on the server side
     message_data = {
-        "message_id": str(ObjectId()),
-        "chat_id": chat_id,
+        "message_id": str(ObjectId()),  # Generate a unique message ID
+        "chat_id": chat_id,  # Add the chat_id from the URL
         "user_id": message_request.user_id,
         "role": message_request.role,
         "content": message_request.content,
-        "timestamp": datetime.utcnow()
+        "timestamp": datetime.utcnow()  # Add the current timestamp
     }
 
     # Insert the message into the database
-    await app.state.db.messages.insert_one(message_data)
+    await messages_collection.insert_one(message_data)
 
-    # Update the chat's 'updated_at' timestamp
-    await app.state.db.chats.update_one(
-        {"chat_id": chat_id},
-        {"$set": {"updated_at": datetime.utcnow()}}
-    )
+    # Update the chat's updated_at timestamp
+    await chats_collection.update_one({"chat_id": chat_id}, {"$set": {"updated_at": datetime.utcnow()}})
 
     return message_data
 
