@@ -13,3 +13,11 @@ async def upload_pdf(
         return await controller.process_pdf(file)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+    
+
+@router.get("/retrieve_documents/")
+async def get_pdf_documents(controller: PDFController = Depends(get_pdf_controller)):
+    try:
+        return controller.get_documents()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))    
