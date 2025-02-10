@@ -138,12 +138,13 @@ def chat_interface():
             for message in messages:
                 if message['role'] == "user":
                     st.markdown(f"""
-                    <div style='background-color: #333333; color: white; padding: 15px; border-radius: 10px; margin-bottom: 5px; width: 60%; text-align: left;'>
-                    <b>You:</b> {message['content']}<br><i>{message['timestamp']}</i></div>
+                    <div style='background-color: #333333; color: white; padding: 15px; border-radius: 10px; margin-bottom: 5px; width: 60%; text-align: right; margin-left: auto;'>
+                    <b>User:</b> {message['content']}<br><i>{message['timestamp']}</i></div>
                     """, unsafe_allow_html=True)
                 else:
+                    
                     st.markdown(f"""
-                    <div style='background-color: #333333; color: white; padding: 15px; border-radius: 10px; margin-bottom: 5px; width: 60%; text-align: right; margin-left: auto;'>
+                    <div style='background-color: #333333; color: white; padding: 15px; border-radius: 10px; margin-bottom: 5px; width: 60%; text-align: left;'>
                     <b>Assistant:</b> {message['content']}<br><i>{message['timestamp']}</i></div>
                     """, unsafe_allow_html=True)
         
