@@ -17,7 +17,7 @@ def get_weaviate_client():
     client = Client(
         url=settings.weaviate_url,
         auth_client_secret=AuthApiKey(settings.weaviate_api_key),
-        additional_headers={'X-OpenAI-Api-key': settings.openai_api_key}
+        additional_headers={'X-Cohere-Api-Key': settings.cohere_api_key}
     )
     return client
 

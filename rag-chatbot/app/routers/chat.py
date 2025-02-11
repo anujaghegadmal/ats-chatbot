@@ -1,12 +1,17 @@
-# from fastapi import APIRouter, Depends
-# from app.schemas.chat import ChatRequest, ChatResponse
-# from app.dependencies import get_vector_db_controller
-# from app.controllers.chat import ChatController
-# from app.controllers.vector_db import VectorDBController
+from fastapi import APIRouter, Depends, HTTPException
+from app.schemas.chat import ChatRequest
+from app.controllers.chat import ChatController
 
-# router = APIRouter()
+router = APIRouter()
 
-# # @router.get("/retrieve_documents/")
-# # async def retrieve_documents(vector_db: VectorDBController = Depends(get_vector_db_controller)):
-# #     documents = vector_db.query_with_graphql()
-# #     return {"documents": documents}
+@router.post("/send_message")
+async def send_message(
+    request: ChatRequest, 
+    controller: ChatController = Depends(ChatController)
+):
+    print("hit from chat router", request.message)
+    try:
+        result = await controller.process_user_message(request.message)
+        return {"message": "Message sent", "content": result}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
