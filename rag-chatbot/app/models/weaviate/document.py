@@ -5,3 +5,5 @@ class WeaviateDocument(BaseModel):
     content: str
     embedding: list[float]
     metadata: dict
+
+    
