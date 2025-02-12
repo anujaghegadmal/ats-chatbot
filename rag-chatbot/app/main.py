@@ -13,7 +13,7 @@ from typing import List, Optional
 from bson import ObjectId
 from app.auth import get_current_user
 # from app.schemas.chat import CreateChatRequest , CreateMessageRequest
-
+from fastapi.middleware.cors import CORSMiddleware
 # Initialize FastAPI app
 app = FastAPI()
 
@@ -24,6 +24,13 @@ app.include_router(upload_pdf.router)
 # Security and authentication setup
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["https://atschatbot.streamlit.app/"],  # Replace with your Streamlit app's URL
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Pydantic models
 class User(BaseModel):
